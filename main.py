@@ -81,12 +81,25 @@ def extract_restaurants_with_gemini(audio_path: str) -> list:
          raise HTTPException(status_code=500, detail="Gemini API Key is not configured on the server.")
 
     try:
-        logger.info("Uploading file to Gemini API...")
+        logger.info("uploading file to Gemini API...")
         uploaded_file = genai.upload_file(path=audio_path)
         
-        logger.info("Initializing Gemini 1.5 Pro model...")
-        # Use 1.5 Pro as it excels at multimodal tasks
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        logger.info("Initializing lowest-friction Gemini 1.5 Pro model...")
+        
+        # Dynamically find the correct 1.5 Pro string for this specific SDK version to prevent 404s
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        logger.info(f"Available models: {available_models}")
+        
+        target_model_name = 'models/gemini-1.5-pro' # default fallback
+        
+        for name in available_models:
+             # Find standard 1.5 pro (not flash, not vision)
+             if 'gemini-1.5-pro' in name and 'vision' not in name:
+                  target_model_name = name
+                  break
+        
+        logger.info(f"Selected model: {target_model_name}")
+        model = genai.GenerativeModel(target_model_name)
         
         prompt = """
         Listen to this audio clip and extract the names of all the restaurants, cafes, or eateries mentioned.
