@@ -86,7 +86,7 @@ def extract_restaurants_with_gemini(audio_path: str) -> list:
         
         logger.info("Initializing Gemini 1.5 Pro model...")
         # Use 1.5 Pro as it excels at multimodal tasks
-        model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        model = genai.GenerativeModel('gemini-1.5-pro')
         
         prompt = """
         Listen to this audio clip and extract the names of all the restaurants, cafes, or eateries mentioned.
