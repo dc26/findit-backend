@@ -82,6 +82,18 @@ def extract_restaurants_with_gemini(media_path: str) -> list:
         logger.info("uploading file to Gemini API...")
         uploaded_file = genai.upload_file(path=media_path)
         
+        logger.info(f"Waiting for video {uploaded_file.name} to become active...")
+        while True:
+            file_info = genai.get_file(uploaded_file.name)
+            # Handle both Enum and string states depending on SDK version
+            state_str = str(file_info.state)
+            if "ACTIVE" in state_str:
+                break
+            elif "FAILED" in state_str:
+                raise Exception("Video processing failed on Gemini servers.")
+            logger.info(f"Video state is {state_str}... waiting 5 seconds.")
+            time.sleep(5)
+            
         logger.info("Initializing Gemini 2.5 Flash model...")
         
         # Hardcode to Gemini 2.5 Flash based on the user's available models
