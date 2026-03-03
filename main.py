@@ -82,10 +82,10 @@ def extract_restaurants_with_gemini(media_path: str) -> list:
         logger.info("uploading file to Gemini API...")
         uploaded_file = genai.upload_file(path=media_path)
         
-        logger.info("Initializing Gemini 1.5 Flash model...")
+        logger.info("Initializing Gemini 2.5 Flash model...")
         
-        # Hardcode to Flash as Pro is throwing 404s on this account/environment
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Hardcode to Gemini 2.5 Flash based on the user's available models
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         prompt = """
         Analyze this 30-second video and its audio. Identify the restaurant or cafe being featured. 
