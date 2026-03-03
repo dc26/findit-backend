@@ -48,9 +48,12 @@ def download_media(url: str, output_path: str = "video.mp4") -> str:
     logger.info(f"Downloading video from {url}")
     
     ydl_opts = {
-        'format': 'best',  # Get best single file with both video and audio
+        'format': 'best[height<=720]/best',  # Limit quality to 720p max to save bandwidth/memory
         'outtmpl': output_path,
-        'quiet': False, # set to false for debugging
+        'quiet': False,
+        'retries': 10,               # Retry on connection drops
+        'fragment_retries': 10,
+        'http_chunk_size': 1048576,  # 1MB chunks to prevent sudden truncation
     }
 
     try:
