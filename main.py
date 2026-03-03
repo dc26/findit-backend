@@ -167,6 +167,17 @@ def geocode_restaurant(name: str) -> dict | None:
 def health_check():
     return {"status": "ok"}
 
+@app.get("/models")
+def list_available_models():
+    """Debug endpoint to list all models available to this API key"""
+    if not GEMINI_API_KEY:
+         return {"error": "API Key not configured"}
+    try:
+         models = [{"name": m.name, "methods": m.supported_generation_methods} for m in genai.list_models()]
+         return {"models": models}
+    except Exception as e:
+         return {"error": str(e)}
+
 @app.post("/parse-reel")
 def parse_reel(request: ReelRequest):
     output_file = "video.mp4"
