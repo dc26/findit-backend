@@ -43,18 +43,13 @@ class RestaurantLocation(BaseModel):
 
 # --- Helper Functions ---
 
-def download_audio(url: str, output_path: str = "audio.mp3") -> str:
-    """Downloads the audio from an Instagram Reel using yt-dlp."""
-    logger.info(f"Downloading audio from {url}")
+def download_media(url: str, output_path: str = "video.mp4") -> str:
+    """Downloads the video from an Instagram/TikTok Reel using yt-dlp."""
+    logger.info(f"Downloading video from {url}")
     
     ydl_opts = {
-        'format': 'bestaudio/best',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'outtmpl': 'audio.%(ext)s',
+        'format': 'best',  # Get best single file with both video and audio
+        'outtmpl': output_path,
         'quiet': False, # set to false for debugging
     }
 
@@ -75,36 +70,24 @@ def download_audio(url: str, output_path: str = "audio.mp3") -> str:
         logger.error(f"Failed to download audio: {e}")
         raise HTTPException(status_code=400, detail=f"Could not download reel audio. Ensure it is a valid public IG Reel URL. Error: {str(e)}")
 
-def extract_restaurants_with_gemini(audio_path: str) -> list:
-    """Uploads audio to Gemini and extracts a JSON list of restaurants."""
+def extract_restaurants_with_gemini(media_path: str) -> list:
+    """Uploads video to Gemini and extracts a JSON list of restaurants."""
     if not GEMINI_API_KEY:
          raise HTTPException(status_code=500, detail="Gemini API Key is not configured on the server.")
 
     try:
         logger.info("uploading file to Gemini API...")
-        uploaded_file = genai.upload_file(path=audio_path)
+        uploaded_file = genai.upload_file(path=media_path)
         
-        logger.info("Initializing lowest-friction Gemini 1.5 Pro model...")
+        logger.info("Initializing Gemini 1.5 Flash model...")
         
-        # Dynamically find the correct 1.5 Pro string for this specific SDK version to prevent 404s
-        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        logger.info(f"Available models: {available_models}")
-        
-        target_model_name = 'models/gemini-1.5-pro' # default fallback
-        
-        for name in available_models:
-             # Find standard 1.5 pro (not flash, not vision)
-             if 'gemini-1.5-pro' in name and 'vision' not in name:
-                  target_model_name = name
-                  break
-        
-        logger.info(f"Selected model: {target_model_name}")
-        model = genai.GenerativeModel(target_model_name)
+        # Hardcode to Flash as Pro is throwing 404s on this account/environment
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = """
-        Listen to this audio clip and extract the names of all the restaurants, cafes, or eateries mentioned.
-        Also, infer the type of cuisine it is based on the context.
-        Return ONLY a raw JSON array of objects, where each object has a 'name' (string) and 'cuisine' (string).
+        Analyze this 30-second video and its audio. Identify the restaurant or cafe being featured. 
+        Look for: 1. Signs on the wall/door. 2. Branding on napkins or menus. 3. The creator mentioning the name in the audio. 
+        Return ONLY a raw JSON array of objects, where each object has a 'name' (string), 'city' (string), and 'confidence_score' (number between 0 and 100).
         If no restaurants are found, return an empty array [].
         Do not include markdown blocks like ```json. Just raw text.
         """
@@ -183,25 +166,26 @@ def health_check():
 
 @app.post("/parse-reel")
 def parse_reel(request: ReelRequest):
-    output_file = "audio.mp3"
+    output_file = "video.mp4"
     try:
-        # 1. Download Audio
-        audio_path = download_audio(request.url, output_file)
+        # 1. Download Video
+        media_path = download_media(request.url, output_file)
         
         # 2. Extract Names with Gemini
-        extracted_data = extract_restaurants_with_gemini(audio_path)
+        extracted_data = extract_restaurants_with_gemini(media_path)
         
         if not extracted_data:
-             return {"message": "No restaurants found in the audio.", "restaurants": []}
+             return {"message": "No restaurants found in the video.", "restaurants": []}
              
         # 3. Geocode with Google Maps
         final_restaurants = []
         for item in extracted_data:
-             # Basic structure
+             # Basic structure using the new JSON schema
              rest = {
                  "id": len(final_restaurants) + 100, # arbitrary id offset
                  "name": item.get("name", "Unknown Restaurant"),
-                 "cuisine": item.get("cuisine", "Restaurant"),
+                 "cuisine": item.get("city", "Restaurant"), # Map city to cuisine for display
+                 "confidence": item.get("confidence_score", 0),
              }
              
              # Fetch lat/lng
@@ -210,7 +194,6 @@ def parse_reel(request: ReelRequest):
                  rest.update(location_data)
                  final_restaurants.append(rest)
              else:
-                 # Skip if we can't map it, or you could provide placeholder coords
                  logger.info(f"Skipping {rest['name']} as it couldn't be geocoded.")
                  
         return {"restaurants": final_restaurants}
